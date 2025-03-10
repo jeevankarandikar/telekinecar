@@ -11,6 +11,10 @@ def band_pass(data,sampling_rate):
     #TODO
     pass
 
+def fft():
+    #TODO
+    pass
+
 def filter_emg_data(data, fs):
     """
     Apply a notch filter at 60 Hz and a bandpass filter from 10 Hz to 200 Hz.
