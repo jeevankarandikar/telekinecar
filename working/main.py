@@ -1,4 +1,4 @@
-from utils import calibrate, classify, filter_emg_data, compute_fft, plot_data_per_class
+from utils import calibrate, classify, filter_emg_data, plot_data_per_class
 from mindrove.board_shim import BoardShim, MindRoveInputParams, BoardIds
 import numpy as np
 import time
@@ -31,13 +31,11 @@ def main():
     
     for i in range(num_classes):
         print(f"Calibrating gesture '{states[i]}'")
-        # Use mode "raw" to store the full time-series without filtering in calibration.
         samples = calibrate(state=states[i],
                             num_samples=num_samples_per_class,
                             num_points_per_sample=num_points_per_sample,
                             num_channels=num_channels,
-                            board_shim=board_shim,
-                            mode="raw")
+                            board_shim=board_shim)
         raw_data_all[i] = samples
         input(f"Calibration for gesture '{states[i]}' complete. Press Enter to continue to the next gesture...")
 
@@ -119,8 +117,8 @@ def main():
     acc_filt_freq = evaluate_accuracy(test_feats_filt_freq, centroids_filt_freq)
     
     print("Classification Accuracies:")
-    print(f"Raw Time Series: {acc_raw_time*100:.2f}%")
-    print(f"Raw Frequency Series: {acc_raw_freq*100:.2f}%")
+    #print(f"Raw Time Series: {acc_raw_time*100:.2f}%")
+    #print(f"Raw Frequency Series: {acc_raw_freq*100:.2f}%")
     print(f"Filtered Time Series: {acc_filt_time*100:.2f}%")
     print(f"Filtered Frequency Series: {acc_filt_freq*100:.2f}%")
     time.sleep(2)
