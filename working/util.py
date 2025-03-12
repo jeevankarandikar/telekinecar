@@ -61,7 +61,7 @@ def compute_fft(data, fs):
     freqs = np.fft.rfftfreq(data.shape[0], d=1/fs)
     return fft_data, freqs
 
-def calibrate(state, num_samples, num_points_per_sample, num_channels, board_shim):
+def calibrate(state, num_samples, num_points_per_sample, num_channels, board_shim,mode):
     if num_samples == 0 or num_points_per_sample == 0:
         raise ValueError("Error: Samples set to 0")
     
@@ -88,7 +88,8 @@ def calibrate(state, num_samples, num_points_per_sample, num_channels, board_shi
             sample = sample[:num_channels]
             points[num_points] = sample.squeeze()
             num_points += 1
-        points = filter_emg_data(points, 500)
+        if mode == "T_Filt" or mode == "F_Filt":
+            points = filter_emg_data(points, 500)
         print(f"{sample_num}/{num_samples}")
         mean_of_points = np.mean(np.abs(points), axis=0)
         samples[sample_num] = mean_of_points

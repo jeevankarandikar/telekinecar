@@ -1,8 +1,9 @@
-from util import calibrate, classify, filter_emg_data, plot_data_per_class
+from util import calibrate, classify, filter_emg_data, plot_data_per_class, compute_fft
 from mindrove.board_shim import BoardShim, MindRoveInputParams, BoardIds
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import argparse
 
 num_samples_per_class = 100
 num_points_per_sample = 30
@@ -13,6 +14,14 @@ num_channels = 4
 states = {0: "rest", 1: "flex", 2: "spiderman"}
     
 def main():
+
+    parser = argparse.ArgumentParser(description="MindRove EMG Gesture Recognition")
+    parser.add_argument("mode", choices=["T_Filt", "T_Unfilt", "F_Unfilt", "F_Unfilt"], help="Choose the mode: T_Filt, T_Unfilt, F_Filt, F_Unfilt")
+
+    args = parser.parse_args()
+
+
+
     board_id = BoardIds.MINDROVE_WIFI_BOARD
     params = MindRoveInputParams()
     board_shim = BoardShim(board_id, params)
@@ -33,8 +42,11 @@ def main():
                                num_samples=num_samples_per_class,
                                num_points_per_sample=num_points_per_sample,
                                num_channels=num_channels,
-                               board_shim=board_shim)
-        
+                               board_shim=board_shim,
+                               mode=args.mode)
+        if args.mode == "F_Filt" or args.mode == "F_Unfilt":
+            class_data, freqs = compute_fft(class_data,num_samples_per_class/num_points_per_sample)
+            
         input(f"Calibration for gesture '{states[i]}' complete. Press Enter to continue to the next gesture...")
         
         rng = np.random.default_rng()
@@ -84,7 +96,10 @@ def main():
             sample = sample[:num_channels]
             points[num_points] = sample.squeeze()
             num_points += 1
-        points = filter_emg_data(points, 500)
+        if args.mode == "T_Filt" or args.mode == "F_Filt":
+            points = filter_emg_data(points, 500)
+        if args.mode == "F_Filt" or args.mode == "F_Unfilt":
+            class_data, freqs = compute_fft(class_data,num_samples_per_class/num_points_per_sample)
         current_sample = np.mean(np.abs(points), axis=0)
         
         pred = classify(current_sample, centroids)
