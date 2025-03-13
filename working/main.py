@@ -1,4 +1,4 @@
-from utils import calibrate, classify, filter_emg_data, plot_data_per_class
+from utils import calibrate, classify, filter_emg_data, plot_data_per_class, compute_fft
 from mindrove.board_shim import BoardShim, MindRoveInputParams, BoardIds
 import numpy as np
 import time
@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # Parameters
 num_samples_per_class = 100
-num_points_per_sample = 30  # Must be >= 27 for the IIR filter padding.
+num_points_per_sample = 50  # Must be >= 27 for the IIR filter padding.
 train_ratio = 0.8
 num_classes = 3
 num_channels = 4
@@ -25,7 +25,7 @@ def main():
     train_size = int(num_samples_per_class * train_ratio)
     test_size = num_samples_per_class - train_size
 
-    # Calibration: collect full raw time-series samples for each gesture
+    # Calibration: collect full raw time-series samples for each gesture.
     # Each sample has shape (num_points_per_sample, num_channels)
     raw_data_all = np.zeros((num_classes, num_samples_per_class, num_points_per_sample, num_channels))
     
@@ -48,8 +48,9 @@ def main():
         train_data_raw[i] = raw_data_all[i][indices[:train_size]]
         test_data_raw[i]  = raw_data_all[i][indices[train_size:]]
     
-    # Build four datasets by computing features from each sample
-    # For each sample (shape: [num_points, num_channels]), extract a feature vector by averaging absolute values over time.
+    # Build four datasets by computing features from each sample.
+    # For each sample (shape: [num_points, num_channels]), the feature is computed by averaging
+    # the absolute values over the time axis (thus, preserving the per-channel amplitude).
     train_feats_raw_time = np.zeros((num_classes, train_size, num_channels))
     test_feats_raw_time  = np.zeros((num_classes, test_size, num_channels))
     train_feats_raw_freq = np.zeros((num_classes, train_size, num_channels))
@@ -63,15 +64,15 @@ def main():
     for i in range(num_classes):
         for j in range(train_size):
             sample = train_data_raw[i, j]  # shape: (num_points_per_sample, num_channels)
-            # Raw time
+            # Raw time: average each sample (averaging over time) for each channel.
             train_feats_raw_time[i, j] = np.mean(np.abs(sample), axis=0)
-            # Raw frequency
+            # Raw frequency:
             fft_raw = np.fft.rfft(sample, axis=0)
             train_feats_raw_freq[i, j] = np.mean(np.abs(fft_raw), axis=0)
-            # Filtered time
+            # Filtered time:
             sample_filt = filter_emg_data(sample, fs)
             train_feats_filt_time[i, j] = np.mean(np.abs(sample_filt), axis=0)
-            # Filtered frequency
+            # Filtered frequency:
             fft_filt = np.fft.rfft(sample_filt, axis=0)
             train_feats_filt_freq[i, j] = np.mean(np.abs(fft_filt), axis=0)
     
@@ -87,7 +88,7 @@ def main():
             fft_filt = np.fft.rfft(sample_filt, axis=0)
             test_feats_filt_freq[i, j] = np.mean(np.abs(fft_filt), axis=0)
     
-    # Compute centroids for datasets
+    # Compute centroids for each dataset (mean feature vector per gesture from training samples)
     centroids_raw_time = np.zeros((num_classes, num_channels))
     centroids_raw_freq = np.zeros((num_classes, num_channels))
     centroids_filt_time = np.zeros((num_classes, num_channels))
@@ -98,13 +99,13 @@ def main():
         centroids_filt_time[i] = np.mean(train_feats_filt_time[i], axis=0)
         centroids_filt_freq[i] = np.mean(train_feats_filt_freq[i], axis=0)
     
-    # Classification accuracy for datasets
+    # Evaluate classification accuracy on the test set for each dataset.
     def evaluate_accuracy(test_feats, centroids):
         correct = 0
         total = 0
         for i in range(num_classes):
             for feat in test_feats[i]:
-                dists = np.linalg.norm(centroids - feat, axis=1)
+                dists = np.linalg.norm(centroids - feat, axis=0)
                 pred = np.argmin(dists)
                 if pred == i:
                     correct += 1
@@ -117,40 +118,47 @@ def main():
     acc_filt_freq = evaluate_accuracy(test_feats_filt_freq, centroids_filt_freq)
     
     print("Classification Accuracies:")
-    #print(f"Raw Time Series: {acc_raw_time*100:.2f}%")
-    #print(f"Raw Frequency Series: {acc_raw_freq*100:.2f}%")
+    print(f"Raw Time Series: {acc_raw_time*100:.2f}%")
+    print(f"Raw Frequency Series: {acc_raw_freq*100:.2f}%")
     print(f"Filtered Time Series: {acc_filt_time*100:.2f}%")
     print(f"Filtered Frequency Series: {acc_filt_freq*100:.2f}%")
     time.sleep(2)
     
-    # Generate 4x3 plots
+    # --- Plotting Calibration Data for Each Gesture ---
+    # For each gesture, we concatenate all calibration samples (from raw_data_all) along the time axis.
+    # Then we average only across channels.
     fig, axs = plt.subplots(num_classes, 4, figsize=(20, 5*num_classes))
     for i in range(num_classes):
-        avg_sample = np.mean(np.concatenate((train_data_raw[i], test_data_raw[i]), axis=0), axis=0)
-        # Averaging across channels
-        avg_raw_time = np.mean(avg_sample, axis=1)
-        sample_filt = filter_emg_data(avg_sample, fs)
-        avg_filt_time = np.mean(sample_filt, axis=1)
-        fft_raw, freqs_raw = compute_fft(avg_sample, fs)
-        avg_raw_freq = np.mean(np.abs(fft_raw), axis=1)
-        fft_filt, freqs_filt = compute_fft(sample_filt, fs)
-        avg_filt_freq = np.mean(np.abs(fft_filt), axis=1)
+        # Concatenate all samples for gesture i along the time axis.
+        gesture_samples = raw_data_all[i]  # shape: (num_samples, num_points, num_channels)
+        concatenated = np.concatenate(gesture_samples, axis=0)  # shape: (num_samples*num_points, num_channels)
+        # Average across channels to get a 1D time series.
+        avg_raw_time_series = np.mean(concatenated, axis=1)
+        # Time axis for the entire gesture.
+        t = np.arange(concatenated.shape[0]) / fs * 1000  # in ms
         
-        t = np.arange(num_points_per_sample) / fs * 1000  # time axis in ms
+        # Compute FFT of raw time series.
+        fft_raw = np.fft.rfft(avg_raw_time_series)
+        freqs_raw = np.fft.rfftfreq(avg_raw_time_series.shape[0], d=1/fs)
         
-        axs[i, 0].plot(t, avg_raw_time)
+        # For the filtered version, filter the concatenated data.
+        concatenated_filt = filter_emg_data(concatenated, fs)
+        avg_filt_time_series = np.mean(concatenated_filt, axis=1)
+        fft_filt = np.fft.rfft(avg_filt_time_series)
+        freqs_filt = np.fft.rfftfreq(avg_filt_time_series.shape[0], d=1/fs)
+        
+        axs[i, 0].plot(t, avg_raw_time_series, color="blue")
         axs[i, 0].set_title(f"{states[i]} Raw Time")
-        axs[i, 1].plot(freqs_raw, avg_raw_freq)
-        axs[i, 1].set_title(f"{states[i]} Raw Freq")
-        axs[i, 2].plot(t, avg_filt_time)
-        axs[i, 2].set_title(f"{states[i]} Filt Time")
-        axs[i, 3].plot(freqs_filt, avg_filt_freq)
+        axs[i, 2].plot(freqs_raw, np.abs(fft_raw), color="orange")
+        axs[i, 2].set_title(f"{states[i]} Raw Freq")
+        axs[i, 1].plot(t, avg_filt_time_series, color="blue")
+        axs[i, 1].set_title(f"{states[i]} Filt Time")
+        axs[i, 3].plot(freqs_filt, np.abs(fft_filt), color="orange")
         axs[i, 3].set_title(f"{states[i]} Filt Freq")
-    
     plt.tight_layout()
     plt.show()
-
-     # --- Inference Loop ---
+    
+    # --- Inference Loop ---
     print("\nStarting inference. Press Ctrl+C to exit.")
     try:
         while True:
@@ -163,7 +171,7 @@ def main():
                 s = s[:num_channels]
                 sample[pt] = s.squeeze()
             
-            # Compute features for each representation.
+            # Compute features for each representation on this sample.
             feat_raw_time = np.mean(np.abs(sample), axis=0)
             fft_raw = np.fft.rfft(sample, axis=0)
             feat_raw_freq = np.mean(np.abs(fft_raw), axis=0)

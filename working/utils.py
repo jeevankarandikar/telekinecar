@@ -37,6 +37,26 @@ def filter_emg_data(data, fs):
         filtered_data[:, ch] = filtered_channel
     return filtered_data
 
+def compute_fft(data, fs):
+    """
+    Computes the FFT of the given data along the time axis.
+    
+    Parameters:
+      data : numpy.ndarray
+          Input data (n_samples, n_channels).
+      fs : float
+          Sampling rate in Hz.
+    
+    Returns:
+      fft_data : numpy.ndarray
+          The FFT of the input data.
+      freqs : numpy.ndarray
+          The corresponding frequency bins.
+    """
+    fft_data = np.fft.rfft(data, axis=0)
+    freqs = np.fft.rfftfreq(data.shape[0], d=1/fs)
+    return fft_data, freqs
+
 def calibrate(state, num_samples, num_points_per_sample, num_channels, board_shim):
     """
     Collects num_samples of data for a given gesture.
