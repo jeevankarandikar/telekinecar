@@ -5,17 +5,14 @@ import matplotlib.pyplot as plt
 
 def filter_emg_data(data, fs):
     """
-    Filters EMG data using a 60 Hz notch filter (Q=30) and a 4th order Butterworth bandpass filter (10–200 Hz).
-    
-    Parameters:
-      data : numpy.ndarray
-          Input data (n_samples, n_channels).
-      fs : float
-          Sampling rate in Hz.
-    
-    Returns:
-      filtered_data : numpy.ndarray
-          Filtered data (n_samples, n_channels).
+    Filters EMG data with a 60 Hz notch filter (Q=30) and a 4th order Butterworth bandpass filter (10–200 Hz)
+
+    Parameters
+      data: Input data array (n_samples, n_channels)
+      fs: Sampling rate in Hz
+
+    Returns
+      Filtered data (n_samples, n_channels)
     """
     notch_freq = 60.0
     Q = 30.0
@@ -39,19 +36,15 @@ def filter_emg_data(data, fs):
 
 def compute_fft(data, fs):
     """
-    Computes the FFT of the given data along the time axis.
-    
-    Parameters:
-      data : numpy.ndarray
-          Input data (n_samples, n_channels).
-      fs : float
-          Sampling rate in Hz.
-    
-    Returns:
-      fft_data : numpy.ndarray
-          The FFT of the input data.
-      freqs : numpy.ndarray
-          The corresponding frequency bins.
+    Computes the FFT of the data along the time axis
+
+    Parameters
+      data: Input data array (n_samples, n_channels)
+      fs: Sampling rate in Hz
+
+    Returns
+      fft_data: FFT of the data
+      freqs: Frequency bins corresponding to the FFT
     """
     fft_data = np.fft.rfft(data, axis=0)
     freqs = np.fft.rfftfreq(data.shape[0], d=1/fs)
@@ -59,10 +52,17 @@ def compute_fft(data, fs):
 
 def calibrate(state, num_samples, num_points_per_sample, num_channels, board_shim):
     """
-    Collects num_samples of data for a given gesture.
-    Each sample is a full time series of shape (num_points_per_sample, num_channels).
-    If mode is "T_Filt" or "F_Filt", filtering is applied to each sample.
-    Otherwise, raw data is returned.
+    Collects num_samples of data for a given gesture
+
+    Parameters
+      state: Gesture state (e.g. "rest", "flex", etc)
+      num_samples: Number of samples to collect
+      num_points_per_sample: Number of data points per sample
+      num_channels: Number of channels in the data
+      board_shim: Object to interact with the board
+
+    Returns
+      Collected samples (num_samples, num_points_per_sample, num_channels)
     """
     samples = np.zeros((num_samples, num_points_per_sample, num_channels))
     print("Do", state, "pose for", num_samples, "samples in...")
@@ -89,7 +89,14 @@ def calibrate(state, num_samples, num_points_per_sample, num_channels, board_shi
 
 def classify(sample, centroids):
     """
-    Classifies a feature vector sample based on the nearest centroid.
+    Classifies a feature vector by finding the nearest centroid
+
+    Parameters
+      sample: Feature vector to classify
+      centroids: Array of centroid vectors (n_classes, feature_dim)
+
+    Returns
+      Index of the nearest centroid
     """
     min_distance = float("inf")
     label = -1
@@ -102,24 +109,15 @@ def classify(sample, centroids):
 
 def plot_data_per_class(raw_data, fs, class_label=""):
     """
-    Plots a figure for one raw data sample for a given class.
-    The figure has one row per channel and four columns:
-      Column 1: Raw time series for that channel.
-      Column 2: Filtered time series for that channel.
-      Column 3: Frequency spectrum (FFT magnitude) of raw data.
-      Column 4: Frequency spectrum (FFT magnitude) of filtered data.
-    
-    Parameters:
-      raw_data : numpy.ndarray
-          Array of shape (n_samples, n_channels).
-      fs : float
-          Sampling rate in Hz.
-      class_label : str, optional
-          Label for the class (displayed in the figure title).
-    
-    Returns:
-      fig : matplotlib.figure.Figure
-          The generated figure.
+    Plots raw and filtered EMG data and their FFTs for each channel
+
+    Parameters
+      raw_data: Array (n_samples, n_channels) with the raw EMG data
+      fs: Sampling rate in Hz
+      class_label: Label for the class (optional)
+
+    Returns
+      A matplotlib figure with the plots
     """
     n_samples, n_channels = raw_data.shape
     filtered_data = filter_emg_data(raw_data, fs)
